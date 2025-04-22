@@ -14,8 +14,18 @@ const CONFIG = {
     { trait_type: "Body", value: "Gold" }
   ],
   MERKLE_TREE: "88fLq9b2Hk1TLj3H9MQiQL1x5n8BAdvqk8SGMgbzmfSH",
-  DEBUG: true
+  MIN_SOL_VALUE: 0.5,
+  RATE_LIMIT: 8,
+  DEBUG: true,
+  MARKETPLACES: {
+    'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K': 'Magic Eden',
+    '5SKmrbAxnHV2sgqydDXKlGjk3z8ZVF5KsemPgYQPs1e': 'Hyperspace'
+  }
 };
+
+// Rate limiting
+const recentMessages = new Set();
+setInterval(() => recentMessages.clear(), 60000);
 
 // Enhanced logging middleware
 app.use((req, res, next) => {
@@ -37,7 +47,9 @@ function hasTargetTrait(attributes) {
 app.post("/hel-webhook", async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body).slice(0, 200) + "...");
+    if (CONFIG.DEBUG) {
+      console.log(`[${timestamp}] RAW BODY KEYS:`, Object.keys(req.body));
+    }
 
     // Handle test webhook
     if (req.body?.type === "test") {
@@ -48,49 +60,71 @@ app.post("/hel-webhook", async (req, res) => {
       return res.status(200).json({ success: true });
     }
 
-    // Process cNFT transactions
-    const transactions = req.body?.data || [];
+    // Process compressed NFT transactions
+    const transactions = req.body?.accountData || [];
     console.log(`[${timestamp}] Processing ${transactions.length} transactions`);
+
+    // Validate transactions
+    if (transactions.length === 0) {
+      console.log(`[${timestamp}] WARNING: Empty transaction list`);
+      console.log(`[${timestamp}] Payload sample:`, {
+        signatures: req.body.signatures?.slice(0, 2),
+        accounts: transactions.map(t => t.account)?.slice(0, 2)
+      });
+      return res.status(400).json({ error: "No transactions found" });
+    }
 
     for (const tx of transactions) {
       try {
-        // Extract cNFT data from transaction
+        if (recentMessages.size >= CONFIG.RATE_LIMIT) {
+          console.log(`[${timestamp}] Rate limit exceeded`);
+          break;
+        }
+
         const nftEvent = tx.events?.nft;
         if (!nftEvent) {
           console.log(`[${timestamp}] No NFT event found`);
           continue;
         }
 
-        // Get first cNFT in transaction (usually only one)
         const cNFT = nftEvent.nfts?.[0];
         if (!cNFT) {
-          console.log(`[${timestamp}] No NFT data found`);
+          console.log(`[${timestamp}] No compressed NFT data`);
           continue;
         }
 
-        // Verify collection
+        // Collection verification
         const collectionId = cNFT.merkleTree;
         if (collectionId !== CONFIG.MERKLE_TREE) {
-          console.log(`[${timestamp}] Skipping - Wrong collection: ${collectionId}`);
+          console.log(`[${timestamp}] Skipping collection ${collectionId}`);
           continue;
         }
 
-        // Extract metadata
+        // Metadata extraction
         const metadata = cNFT.metadata || {};
         const attributes = metadata.attributes || [];
-        const price = nftEvent.amount ? (nftEvent.amount / 1e9).toFixed(2) : 'Unknown';
+        const price = nftEvent.amount ? (nftEvent.amount / 1e9).toFixed(2) : 0;
 
-        // Check traits
-        if (!hasTargetTrait(attributes)) {
-          console.log(`[${timestamp}] Skipping - No matching traits`);
+        // Price filter
+        if (price < CONFIG.MIN_SOL_VALUE) {
+          console.log(`[${timestamp}] Skipping low value sale: ${price} SOL`);
           continue;
         }
+
+        // Trait verification
+        if (!hasTargetTrait(attributes)) {
+          console.log(`[${timestamp}] No matching traits found`);
+          continue;
+        }
+
+        // Marketplace detection
+        const marketplace = CONFIG.MARKETPLACES[nftEvent.source] || 'Unknown';
 
         // Build Discord message
         const discordMsg = {
           embeds: [{
-            title: `🎉 ${metadata.name || "cNFT"} Sold!`,
-            description: `**${price} SOL** | [View Transaction](https://solscan.io/tx/${tx.signature})`,
+            title: `💎 ${metadata.name || "cNFT"} Sold!`,
+            description: `**${price} SOL** on ${marketplace}\n[View Transaction](https://solscan.io/tx/${tx.signature})`,
             color: 0x00FF00,
             fields: [
               { name: "Buyer", value: `\`${nftEvent.buyer?.slice(0, 8)}...\``, inline: true },
@@ -98,16 +132,17 @@ app.post("/hel-webhook", async (req, res) => {
               { name: "Traits", value: attributes.map(a => `• ${a.trait_type}: ${a.value}`).join('\n') || 'None' }
             ],
             thumbnail: { url: metadata.image || "" },
-            footer: { text: "cNFT Sales Bot | Bongo's Silver/Gold Sales" }
+            footer: { text: "Bongo's Silver/Gold Sales Monitor" }
           }]
         };
 
         // Send to Discord
-        console.log(`[${timestamp}] Posting to Discord: ${metadata.name}`);
+        console.log(`[${timestamp}] Posting sale: ${metadata.name}`);
         await axios.post(DISCORD_WEBHOOK_URL, discordMsg);
+        recentMessages.add(tx.signature);
 
       } catch (txError) {
-        console.error(`[${timestamp}] Transaction processing error:`, txError);
+        console.error(`[${timestamp}] TX Error:`, txError.message);
       }
     }
 
@@ -129,5 +164,6 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`[${new Date().toISOString()}] Server STARTED on port ${PORT}`);
   console.log(`[CONFIG] Monitoring collection: ${CONFIG.MERKLE_TREE}`);
-  console.log(`[CONFIG] Looking for traits:`, CONFIG.TRAIT_FILTERS);
+  console.log(`[CONFIG] Minimum value alert: ${CONFIG.MIN_SOL_VALUE} SOL`);
+  console.log(`[CONFIG] Rate limit: ${CONFIG.RATE_LIMIT}/minute`);
 });
