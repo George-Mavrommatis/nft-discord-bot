@@ -2,118 +2,180 @@ const express = require("express");
 const axios = require("axios");
 
 const app = express();
-app.use(express.json({ limit: '10mb' })); // Increase limit for large payloads
+app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 8080;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-// Function to safely post to Discord
-async function postToDiscord(message) {
+// Configure the traits you want to filter for
+// Only NFTs with at least one of these traits will trigger Discord notifications
+const TRAIT_FILTERS = [
+  { trait_type: "Body", value: "Silver" },
+  { trait_type: "Body", value: "Gold" }
+  // Add more traits as needed
+];
+
+// Check if NFT has any of our desired traits
+function hasDesiredTraits(attributes) {
+  if (!attributes || !Array.isArray(attributes)) return false;
+
+  return TRAIT_FILTERS.some(filter =>
+    attributes.some(attr =>
+      attr.trait_type === filter.trait_type &&
+      attr.value === filter.value
+    )
+  );
+}
+
+// Post message to Discord
+async function postToDiscord(embedData) {
   try {
-    const response = await axios({
+    await axios({
       method: 'post',
       url: DISCORD_WEBHOOK_URL,
-      data: message,
+      data: { embeds: [embedData] },
       headers: { 'Content-Type': 'application/json' }
     });
-    console.log("Successfully posted to Discord, status:", response.status);
     return true;
   } catch (error) {
     console.error("Error posting to Discord:", error.message);
-    if (error.response) {
-      console.error("  Status:", error.response.status);
-    }
     return false;
   }
 }
 
-// Helper to extract SOL price from various formats
-function extractPrice(tx) {
-  // Try all possible price fields
-  const priceInLamports = tx.price || tx.amount ||
-                         tx.events?.nft?.amount ||
-                         tx.tokenTransfers?.[0]?.amount ||
-                         0;
+// Process compressed NFT sale
+function processCompressedNftSale(tx) {
+  try {
+    // Extract data for compressed NFTs
+    const compressedData = tx.events?.compressed;
+    if (!compressedData) return null;
 
-  return (priceInLamports / 1e9).toFixed(2); // Convert lamports to SOL
+    const nft = compressedData.nfts?.[0];
+    if (!nft) return null;
+
+    // Check if NFT has desired traits
+    if (!hasDesiredTraits(nft.attributes)) return null;
+
+    // Extract price in SOL
+    const price = (compressedData.amount / 1e9).toFixed(2);
+
+    // Format matched traits for display
+    const matchedTraits = nft.attributes
+      .filter(attr =>
+        TRAIT_FILTERS.some(filter =>
+          filter.trait_type === attr.trait_type &&
+          filter.value === attr.value
+        )
+      )
+      .map(attr => `${attr.trait_type}: ${attr.value}`)
+      .join(', ');
+
+    // Create embed for Discord
+    return {
+      title: `${nft.name} Sold!`,
+      description: `A rare NFT with matching traits was just sold!`,
+      color: 0x5865F2, // Discord blue color
+      thumbnail: { url: nft.image },
+      fields: [
+        { name: "Price", value: `${price} SOL`, inline: true },
+        { name: "Collection", value: nft.collection?.name || "Unknown", inline: true },
+        { name: "Matching Traits", value: matchedTraits, inline: false }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: "Powered by Helius made by Kingb0ng0" }
+    };
+  } catch (error) {
+    console.error("Error processing compressed NFT:", error);
+    return null;
+  }
 }
 
-app.post("/hel-webhook", async (req, res) => {
+// Process standard NFT sale
+function processStandardNftSale(tx) {
   try {
-    console.log("Webhook received at", new Date().toISOString());
+    // Handle traditional NFT sale format
+    if (tx.type !== 'NFT_SALE') return null;
 
-    // Always respond with 200 OK immediately
-    res.status(200).send("ok");
+    const nft = tx.nft;
+    if (!nft) return null;
 
-    // Log the raw data
-    console.log("Received data:", JSON.stringify(req.body).slice(0, 500) + "...");
+    // Check if NFT has desired traits
+    if (!hasDesiredTraits(nft.metadata?.attributes)) return null;
 
-    // First post a notification that we received something
-    await postToDiscord({
-      content: `Received webhook data from Helius at ${new Date().toISOString()}!`
-    });
+    // Extract price in SOL
+    const price = (tx.amount / 1e9).toFixed(2);
 
-    // Handle all possible data structures
-    let transactions = [];
+    // Format matched traits for display
+    const matchedTraits = nft.metadata?.attributes
+      .filter(attr =>
+        TRAIT_FILTERS.some(filter =>
+          filter.trait_type === attr.trait_type &&
+          filter.value === attr.value
+        )
+      )
+      .map(attr => `${attr.trait_type}: ${attr.value}`)
+      .join(', ');
+
+    // Create embed for Discord
+    return {
+      title: `${nft.metadata?.name || "NFT"} Sold!`,
+      description: `A rare NFT with matching traits was just sold!`,
+      color: 0x5865F2,
+      thumbnail: { url: nft.metadata?.image },
+      fields: [
+        { name: "Price", value: `${price} SOL`, inline: true },
+        { name: "Collection", value: nft.metadata?.collection?.name || "Unknown", inline: true },
+        { name: "Matching Traits", value: matchedTraits, inline: false }
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: "Powered by Helius" }
+    };
+  } catch (error) {
+    console.error("Error processing standard NFT:", error);
+    return null;
+  }
+}
+
+// Main webhook handler
+app.post("/hel-webhook", async (req, res) => {
+  // Always respond to Helius immediately with 200 OK
+  res.status(200).send("ok");
+
+  try {
     const payload = req.body;
 
-    if (Array.isArray(payload)) {
-      transactions = payload;
-    } else if (payload.data && Array.isArray(payload.data)) {
-      transactions = payload.data;
-    } else if (payload.type || payload.signature) {
-      // Single transaction object
-      transactions = [payload];
-    } else {
-      // Unknown format, try to process the whole payload
-      transactions = [payload];
-    }
-
-    console.log(`Processing ${transactions.length} transaction objects`);
+    // Handle different data formats
+    const transactions = Array.isArray(payload) ? payload :
+                         payload.data && Array.isArray(payload.data) ? payload.data :
+                         [payload];
 
     // Process each transaction
-    for (let i = 0; i < transactions.length; i++) {
-      const tx = transactions[i];
-      console.log(`Transaction ${i+1}/${transactions.length} type:`, tx.type || "unknown");
+    for (const tx of transactions) {
+      // Try processing as compressed NFT first
+      let embedData = processCompressedNftSale(tx);
 
-      // Try to post basic information for EVERY transaction
-      try {
-        // Super simple message with transaction signature
-        const txSignature = tx.signature || tx.id || "unknown";
+      // If not a compressed NFT sale, try as standard NFT sale
+      if (!embedData) {
+        embedData = processStandardNftSale(tx);
+      }
 
-        await postToDiscord({
-          content: `NFT Activity Detected!\nTransaction: ${txSignature}\nType: ${tx.type || "unknown"}\nTimestamp: ${new Date().toISOString()}`
-        });
-
-        // If it's specifically an NFT_SALE, try to extract more details
-        if (tx.type === 'NFT_SALE' || tx.events?.nft || tx.nft) {
-          const price = extractPrice(tx);
-          const solscanLink = `https://solscan.io/tx/${txSignature}`;
-
-          // Try to get NFT name from any possible location
-          let nftName = "Unknown NFT";
-          if (tx.nft?.metadata?.name) nftName = tx.nft.metadata.name;
-          else if (tx.events?.nft?.nfts?.[0]?.metadata?.name) nftName = tx.events.nft.nfts[0].metadata.name;
-          else if (tx.description) nftName = tx.description;
-
-          // Post a more detailed message
-          await postToDiscord({
-            content: `NFT SALE: ${nftName}\nPrice: ${price} SOL\nView Transaction: ${solscanLink}`
-          });
-        }
-      } catch (error) {
-        console.error(`Error processing transaction ${i+1}:`, error.message);
+      // If we have valid embed data (meaning we found a matching NFT sale), post to Discord
+      if (embedData) {
+        await postToDiscord(embedData);
       }
     }
   } catch (error) {
     console.error("Error processing webhook:", error);
-    // Already sent 200 response
+    // Already sent 200 response to Helius
   }
 });
 
-// Add a simple GET endpoint for health checks
+// Health check endpoint
 app.get("/", (req, res) => {
   res.send("NFT Webhook service is running!");
 });
 
-app.listen(PORT, () => console.log(`Listening on ${PORT}`));  
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
