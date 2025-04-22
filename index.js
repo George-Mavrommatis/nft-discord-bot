@@ -34,44 +34,31 @@ function hasTargetTrait(attributes) {
   );
 }
 
-app.post("/hel-webhook", async (req, res) => {
+app.post("/hel-webhook", async (req, res) => { // Changed endpoint
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body).slice(0, 300)); // Log raw payload
+    console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body));
 
-    // 1. Test webhook handling
-    if (req.body.webhookId === "test") {
+    // 1. Handle Helius test webhook
+    if (req.body?.type === "test") { // Updated test detection
       console.log(`[${timestamp}] TEST WEBHOOK RECEIVED`);
       await axios.post(DISCORD_WEBHOOK_URL, {
-        embeds: [{
-          title: "Test Received ✅",
-          description: `Server received test at ${timestamp}`,
-          color: 65280
-        }]
+        embeds: [{ title: "Test Received ✅", color: 65280 }]
       });
-      return res.status(200).json({ received: true });
+      return res.status(200).json({ success: true });
     }
 
-    // 2. Real transaction handling
-    const transactions = Array.isArray(req.body) ? req.body : req.body.data || [];
+    // 2. Process transactions
+    const transactions = req.body?.data || [];
     console.log(`[${timestamp}] Processing ${transactions.length} transactions`);
 
     for (const tx of transactions) {
-      console.log(`[${timestamp}] TX TYPE: ${tx.type || 'unknown'}`);
+      const collectionId = tx.events?.nft?.nfts?.[0]?.merkleTree; // Updated path
 
-      if (tx.type === 'NFT_SALE') {
-        const nft = tx.events?.nft?.nfts?.[0] || {};
-        const metadata = nft.metadata || {};
-
-        console.log(`[${timestamp}] NFT: ${metadata.name || 'Unnamed'}`,
-          `Collection: ${nft.merkleTree || 'unknown'}`);
-
-        // Collection filter
-        if (nft.merkleTree !== CONFIG.MERKLE_TREE) {
-          console.log(`[${timestamp}] Skipping - Wrong collection`);
-          continue;
-        }
-
+      if (collectionId !== CONFIG.MERKLE_TREE) {
+        console.log(`[${timestamp}] Skipping - Wrong collection`);
+        continue;
+      }
         // Trait filter
         const attributes = metadata.attributes || [];
         if (!hasTargetTrait(attributes)) {
