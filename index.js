@@ -55,7 +55,7 @@ app.post("/hel-webhook", async (req, res) => {
   res.status(200).send("ok");
 });
 
-app.listen(PORT, () => console.log(`Listening on ${PORT}`));
+app.listen(PORT, () => console.log("Listening on " + PORT)); 
 ```
 **Setup Steps:**
 1. Replace `YOUR_DISCORD_WEBHOOK_URL` with your Discord channel webhook (see [here](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)).
