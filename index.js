@@ -15,8 +15,8 @@ const PORT = process.env.PORT || 8080;
 
 // Example: Only notify if trait_type = "Background" is "Pink" OR "Eyes" is "Laser"
 const TRAIT_FILTERS = [
-  { trait_type: "Background", value: "Pink" },
-  { trait_type: "Eyes", value: "Laser" },
+  { trait_type: "Background", value: "Silver" },
+  { trait_type: "Background", value: "Gold" },
 ];
 
 // Utility: Checks if any desired trait is present in NFT's attributes
@@ -55,29 +55,5 @@ app.post("/hel-webhook", async (req, res) => {
   res.status(200).send("ok");
 });
 
-app.listen(PORT, () => console.log("Listening on " + PORT)); 
+app.listen(PORT, () => console.log("Listening on " + PORT));
 ```
-**Setup Steps:**
-1. Replace `YOUR_DISCORD_WEBHOOK_URL` with your Discord channel webhook (see [here](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)).
-2. Deploy this server somewhere public (e.g., Render, Heroku, Digital Ocean, Fly.io, or your own VPS).
-3. In Helius, set your webhook’s **Target URL** to `https://your-app-url.com/hel-webhook`.
-4. Update `TRAIT_FILTERS` to your desired two traits.
-
----
-
-## **3. Testing**
-
-- Sell/list NFTs matching your traits on Solana, monitor Discord channel.
-- Only trait-matching sales post; everything else is filtered out.
-
----
-
-## **4. Optional: Extensions**
-
-- Format messages better (rarity info, marketplace link, etc).
-- Support multiple collections or multiple trait combinations.
-- Add error handling/logging for production.
-
----
-
-**Let me know which two traits you're interested in, and your comfort level (do you want a deploy guide for a specific host, or help converting to Python or another stack?).** I'm happy to expand with exactly what you need!
