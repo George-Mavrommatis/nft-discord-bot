@@ -33,7 +33,7 @@ app.post("/hel-webhook", async (req, res) => {
       // Format message for Discord
       const saleMsg = {
         embeds: [{
-          title: `${metadata.name || "NFT"} SOLD`,
+        title: (metadata.name || "NFT") + " SOLD",  
           description: `**Tx:** [View](https://solscan.io/tx/${event.signature})`,
           fields: [
             {name: "Buyer", value: event.buyer, inline:true},
