@@ -34,7 +34,7 @@ function hasTargetTrait(attributes) {
   );
 }
 
-app.post("/webhook", async (req, res) => {
+app.post("/hel-webhook", async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
     console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body).slice(0, 300)); // Log raw payload
