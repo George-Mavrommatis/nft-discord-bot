@@ -1,5 +1,7 @@
 
 ```js
+"use strict";
+
 // Install dependencies: express, axios, dotenv (optional)
 const express = require("express");
 const axios = require("axios");
@@ -32,19 +34,21 @@ app.post("/hel-webhook", async (req, res) => {
     if (matchesTraits(metadata.attributes || [])) {
       // Format message for Discord
       const saleMsg = {
-      embeds: [{
-        title: (metadata.name || "NFT") + " SOLD",
-        description: "**Tx:** [View](https://solscan.io/tx/"+event.signature+")",
-        fields: [
-          { name: "Buyer", value: event.buyer, inline: true },
-          { name: "Seller", value: event.seller, inline: true },
-          { name: "Price", value: "$" + (event.price/1e9).toFixed(2) + " SOL", inline: true },
-          { name: "Traits", value: metadata.attributes && metadata.attributes.map(a => `${a.trait_type}: ${a.value}`).join(", ") || "None" }
-        ],
-        image: { url: metadata.image || "" },
-        footer: { text: "Powered by Helius" }
-      }]
-    };
+        embeds: [{
+          title: (metadata.name || "NFT") + " SOLD",
+          description: "**Tx:** [View](https://solscan.io/tx/"+event.signature+")",
+          fields: [
+            { name: "Buyer", value: event.buyer, inline: true },
+            { name: "Seller", value: event.seller, inline: true },
+            { name: "Price", value: "$" + (event.price/1e9).toFixed(2) + " SOL", inline: true },
+            { name: "Traits", value: metadata.attributes && metadata.attributes.map(function(a) {
+                return a.trait_type + ": " + a.value;
+              }).join(", ") || "None" }
+          ],
+          image: { url: metadata.image || "" },
+          footer: { text: "Powered by Helius" }
+        }]
+      };
       await axios.post(DISCORD_WEBHOOK_URL, saleMsg);
     }
   }
