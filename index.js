@@ -4,7 +4,7 @@ const axios = require("axios");
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 8080; // Render uses 8080 by default
+const PORT = process.env.PORT || 8080;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
 // CONFIGURATION
@@ -34,13 +34,13 @@ function hasTargetTrait(attributes) {
   );
 }
 
-app.post("/hel-webhook", async (req, res) => { // Changed endpoint
+app.post("/hel-webhook", async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
-    console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body));
+    console.log(`[${timestamp}] RAW BODY:`, JSON.stringify(req.body).slice(0, 200) + "...");
 
-    // 1. Handle Helius test webhook
-    if (req.body?.type === "test") { // Updated test detection
+    // Handle test webhook
+    if (req.body?.type === "test") {
       console.log(`[${timestamp}] TEST WEBHOOK RECEIVED`);
       await axios.post(DISCORD_WEBHOOK_URL, {
         embeds: [{ title: "Test Received ✅", color: 65280 }]
@@ -48,34 +48,66 @@ app.post("/hel-webhook", async (req, res) => { // Changed endpoint
       return res.status(200).json({ success: true });
     }
 
-    // 2. Process transactions
+    // Process cNFT transactions
     const transactions = req.body?.data || [];
     console.log(`[${timestamp}] Processing ${transactions.length} transactions`);
 
     for (const tx of transactions) {
-      const collectionId = tx.events?.nft?.nfts?.[0]?.merkleTree; // Updated path
+      try {
+        // Extract cNFT data from transaction
+        const nftEvent = tx.events?.nft;
+        if (!nftEvent) {
+          console.log(`[${timestamp}] No NFT event found`);
+          continue;
+        }
 
-      if (collectionId !== CONFIG.MERKLE_TREE) {
-        console.log(`[${timestamp}] Skipping - Wrong collection`);
-        continue;
-      }
-        // Trait filter
+        // Get first cNFT in transaction (usually only one)
+        const cNFT = nftEvent.nfts?.[0];
+        if (!cNFT) {
+          console.log(`[${timestamp}] No NFT data found`);
+          continue;
+        }
+
+        // Verify collection
+        const collectionId = cNFT.merkleTree;
+        if (collectionId !== CONFIG.MERKLE_TREE) {
+          console.log(`[${timestamp}] Skipping - Wrong collection: ${collectionId}`);
+          continue;
+        }
+
+        // Extract metadata
+        const metadata = cNFT.metadata || {};
         const attributes = metadata.attributes || [];
+        const price = nftEvent.amount ? (nftEvent.amount / 1e9).toFixed(2) : 'Unknown';
+
+        // Check traits
         if (!hasTargetTrait(attributes)) {
           console.log(`[${timestamp}] Skipping - No matching traits`);
           continue;
         }
 
-        // Post to Discord
-        await axios.post(DISCORD_WEBHOOK_URL, {
+        // Build Discord message
+        const discordMsg = {
           embeds: [{
-            title: `MATCH FOUND ${metadata.name}`,
-            description: `Silver/Gold NFT sold!`,
+            title: `🎉 ${metadata.name || "cNFT"} Sold!`,
+            description: `**${price} SOL** | [View Transaction](https://solscan.io/tx/${tx.signature})`,
+            color: 0x00FF00,
             fields: [
-              {name: "Traits", value: attributes.map(a => `${a.trait_type}: ${a.value}`).join('\n')}
-            ]
+              { name: "Buyer", value: `\`${nftEvent.buyer?.slice(0, 8)}...\``, inline: true },
+              { name: "Seller", value: `\`${nftEvent.seller?.slice(0, 8)}...\``, inline: true },
+              { name: "Traits", value: attributes.map(a => `• ${a.trait_type}: ${a.value}`).join('\n') || 'None' }
+            ],
+            thumbnail: { url: metadata.image || "" },
+            footer: { text: "cNFT Sales Bot | Bongo's Silver/Gold Sales" }
           }]
-        });
+        };
+
+        // Send to Discord
+        console.log(`[${timestamp}] Posting to Discord: ${metadata.name}`);
+        await axios.post(DISCORD_WEBHOOK_URL, discordMsg);
+
+      } catch (txError) {
+        console.error(`[${timestamp}] Transaction processing error:`, txError);
       }
     }
 
@@ -86,14 +118,14 @@ app.post("/hel-webhook", async (req, res) => { // Changed endpoint
   }
 });
 
-// Health check with timestamp
+// Health check endpoint
 app.get("/", (req, res) => {
   const ts = new Date().toISOString();
   console.log(`[${ts}] Health check received`);
   res.send(`Server operational at ${ts}`);
 });
 
-// Start server with confirmation
+// Start server
 app.listen(PORT, () => {
   console.log(`[${new Date().toISOString()}] Server STARTED on port ${PORT}`);
   console.log(`[CONFIG] Monitoring collection: ${CONFIG.MERKLE_TREE}`);
