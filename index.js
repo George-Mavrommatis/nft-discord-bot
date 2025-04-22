@@ -1,6 +1,4 @@
 
-```js
-"use strict";
 
 // Install dependencies: express, axios, dotenv (optional)
 const express = require("express");
@@ -56,4 +54,3 @@ app.post("/hel-webhook", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log("Listening on " + PORT));
-```
