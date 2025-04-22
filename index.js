@@ -14,7 +14,7 @@ const CONFIG = {
     { trait_type: "Body", value: "Gold" }
   ],
   MERKLE_TREE: "88fLq9b2Hk1TLj3H9MQiQL1x5n8BAdvqk8SGMgbzmfSH",
-  MIN_SOL_VALUE: 0.5,
+  MIN_SOL_VALUE: 0.01,
   RATE_LIMIT: 8,
   DEBUG: true,
   MARKETPLACES: {
