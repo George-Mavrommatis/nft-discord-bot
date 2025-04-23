@@ -49,6 +49,18 @@ class MessageQueue {
     // Process next message
     setImmediate(() => this.process());
   }
+  
+  async sendSimpleSaleNotification(saleData) {
+    const { name, price, signature } = saleData;
+
+    const discordMsg = {
+      content: `A ${name} has been sold but it ain't Silver or Gold!`
+    };
+
+    // Add to queue for sending
+    messageQueue.add(discordMsg);
+    return true;
+  }
 
   async sendMessage(message) {
     try {

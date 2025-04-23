@@ -37,12 +37,61 @@ const heliusService = {
   /**
    * Process webhook transactions to find matching NFT sales
    */
-  processTransactions(transactions) {
-    const results = {
-      matched: [],
-      skipped: [],
-      errors: []
+   processTransactions(transactions) {
+     const results = {
+       matched: [],      // Silver/Gold sales
+       otherSales: [],   // Other sales
+       skipped: [],      // Items to skip (non-sales, wrong collection, etc.)
+       errors: []
+     };
+
+
+     // Check for target traits
+  const hasTargetTrait = config.traitFilters.some(filter =>
+    attributes.some(attr =>
+      attr.trait_type === filter.trait_type &&
+      attr.value === filter.value
+    )
+  );
+
+  // After your trait verification check
+  if (!hasTargetTrait(attributes)) {
+    console.log(`[${timestamp}] Non-matching trait sale found`);
+
+    // Send a simple message for non-matching sales
+    const simpleSaleMsg = {
+      content: `A ${metadata.name || "Wegen"} has been sold but it ain't Silver or Gold!`
     };
+
+    try {
+      console.log(`[${timestamp}] Posting simple sale notification`);
+      await axios.post(DISCORD_WEBHOOK_URL, simpleSaleMsg);
+      recentMessages.add(tx.signature);
+    } catch (discordError) {
+      console.error(`[${timestamp}] Discord Error:`, discordError.message);
+    }
+
+    continue; // Continue to next transaction
+  }
+
+  if (hasTargetTrait) {
+    // Add to matched results for rich embeds
+    results.matched.push({
+      signature: tx.signature,
+      metadata,
+      price,
+      marketplace,
+      nftEvent
+    });
+  } else {
+    // Add to otherSales for simple notifications
+    results.otherSales.push({
+      signature: tx.signature,
+      name: metadata.name || "Wegen",
+      price
+    });
+  }
+
 
     if (!Array.isArray(transactions) || transactions.length === 0) {
       return results;
@@ -98,6 +147,8 @@ const heliusService = {
           )
         );
 
+
+// all trait sales
         if (!hasTargetTrait) {
           results.skipped.push({
             reason: 'No matching traits',

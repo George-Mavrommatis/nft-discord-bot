@@ -48,14 +48,20 @@ router.post('/webhook', validateWebhook, async (req, res) => {
 
     logger.info('Webhook processing summary', {
       matched: results.matched.length,
+      otherSales: results.otherSales.length,
       skipped: results.skipped.length,
       errors: results.errors.length
     });
 
-    // Send Discord notifications for all matching sales
+    // Send Discord notifications for all matching sales (rich embeds)
     for (const sale of results.matched) {
       await discordService.sendNftSaleNotification(sale);
     }
+
+    // Send simple notifications for other sales
+    for (const sale of results.otherSales) {
+      await discordService.sendSimpleSaleNotification(sale);
+    }  
 
     return res.status(200).json({
       success: true,
