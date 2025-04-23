@@ -1,30 +1,3 @@
-const express = require('express');
-const heliusService = require('./services/helius-service');
-const discordService = require('./services/discord-service');
-const logger = require('./utils/logger');
-const config = require('./config/config');
-
-const router = express.Router();
-
-// Health check endpoint
-router.get('/', (req, res) => {
-  const timestamp = new Date().toISOString();
-  logger.info('Health check received');
-  res.status(200).send(`Server operational at ${timestamp}`);
-});
-
-// Test webhook endpoint - allows manual triggering of test webhooks
-router.post('/trigger-test', async (req, res) => {
-  try {
-    logger.info('Sending test webhook to Helius');
-    const result = await heliusService.sendTestWebhook();
-    res.status(200).json({ success: true, result });
-  } catch (error) {
-    logger.error(`Error sending test webhook: ${error.message}`);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Helius webhook endpoint
 router.post('/webhook', async (req, res) => {
   console.log('WEBHOOK RECEIVED: ', new Date().toISOString());
@@ -34,12 +7,12 @@ router.post('/webhook', async (req, res) => {
   const timestamp = new Date().toISOString();
   try {
     // Check if this is a test webhook from Helius
-    // This logic needs to inspect the actual webhook payload
-    const isTestWebhook = detectTestWebhook(req.body);
+    const isTestWebhook = detectHeliusTestWebhook(req.body);
 
     if (isTestWebhook) {
-      logger.info('Processing test webhook');
-      await discordService.sendTestWebhookConfirmation();
+      logger.info('Processing test webhook - sending Discord notification');
+      const result = await discordService.sendTestWebhookConfirmation();
+      logger.info('Test webhook Discord notification result:', result);
       return res.status(200).json({ success: true, type: 'test' });
     }
 
@@ -77,24 +50,39 @@ router.post('/webhook', async (req, res) => {
     logger.error(`Critical webhook error: ${error.message}`, { stack: error.stack });
     return res.status(500).json({ error: error.message });
   }
-  // Remove this line - it's unreachable and would cause "headers already sent" error
-  // res.status(200).json({ success: true });
 });
 
-// Helper function to detect if the webhook is a test webhook from Helius
-function detectTestWebhook(webhookData) {
-  // Implement logic to detect a test webhook
-  // For example, test webhooks may have specific properties or values
-  // Based on Helius documentation or by examining the test webhook payload
+// Helper function to detect test webhooks from Helius
+function detectHeliusTestWebhook(data) {
+  // Check if this is a test webhook from Helius
+  // Test webhooks often have specific properties or structures
 
-  // Simple example (you'll need to adjust this based on actual test webhook format)
-  if (Array.isArray(webhookData)) {
-    return webhookData.some(tx =>
-      tx.type === 'TEST_WEBHOOK' ||
-      (tx.description && tx.description.includes('test'))
-    );
+  console.log("Checking if webhook is a test webhook");
+
+  // Log the full data for debugging
+  console.log("Full webhook data:", JSON.stringify(data, null, 2));
+
+  // Common test webhook indicators
+  if (Array.isArray(data)) {
+    for (const tx of data) {
+      if (tx.type === 'TEST' ||
+          tx.description === 'Test Webhook' ||
+          (tx.source && tx.source === 'HELIUS_DASHBOARD_TEST')) {
+        console.log("Test webhook detected!");
+        return true;
+      }
+    }
   }
+
+  // For single-object payloads
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.type === 'TEST' ||
+        data.description === 'Test Webhook' ||
+        (data.source && data.source === 'HELIUS_DASHBOARD_TEST')) {
+      console.log("Test webhook detected!");
+      return true;
+    }
+  }
+
   return false;
 }
-
-module.exports = router;

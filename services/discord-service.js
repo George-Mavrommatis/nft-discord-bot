@@ -70,17 +70,25 @@ class MessageQueue {
   }
 
 
+  // Change this in sendMessage method
   async sendMessage(message) {
     try {
       logger.debug('Sending Discord message', { message });
+      // Use the same variable name as in other methods
       const response = await axios.post(config.DISCORD_WEBHOOK_URL, message);
       logger.debug('Discord response', { status: response.status });
       return response;
     } catch (error) {
+      // Improve error logging
+      logger.error('Discord message error', {
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       // Rethrow for rate limit handling
       throw error;
     }
-  }
+  }  
 }
 
 const messageQueue = new MessageQueue();
