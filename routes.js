@@ -27,7 +27,11 @@ router.post('/trigger-test', async (req, res) => {
 });
 
 // Helius webhook endpoint
-router.post('/webhook', validateWebhook, async (req, res) => {
+router.post('/webhook', async (req, res) => {
+  console.log('WEBHOOK RECEIVED: ', new Date().toISOString());
+  console.log('Headers:', JSON.stringify(req.headers));
+  console.log('Body sample:', JSON.stringify(req.body).substring(0, 500) + '...');
+
   const timestamp = new Date().toISOString();
   try {
     // If this is a test webhook
@@ -72,6 +76,7 @@ router.post('/webhook', validateWebhook, async (req, res) => {
     logger.error(`Critical webhook error: ${error.message}`, { stack: error.stack });
     return res.status(500).json({ error: error.message });
   }
+   res.status(200).json({ success: true }); 
 });
 
 module.exports = router;

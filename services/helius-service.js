@@ -4,35 +4,6 @@ const config = require('../config/config');
 const logger = require('../utils/logger');
 
 const heliusService = {
-  /**
-   * Verify if a webhook signature is valid
-   */
-  verifyWebhookSignature(signature, payload) {
-    if (!config.webhookSecret) {
-      logger.warn('No webhook secret configured, skipping signature verification');
-      return true;
-    }
-
-    try {
-      // Create hmac with secret
-      const hmac = crypto.createHmac('sha256', config.webhookSecret);
-
-      // Update with payload (should be the raw body string)
-      hmac.update(payload);
-
-      // Get the digest in hex format
-      const digest = hmac.digest('hex');
-
-      // Verify signature matches digest
-      return crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(digest)
-      );
-    } catch (error) {
-      logger.error('Error verifying webhook signature', { error: error.message });
-      return false;
-    }
-  },
 
   /**going
    * Process webhook transactions to find matching NFT sales

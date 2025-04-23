@@ -49,5 +49,10 @@ const validateWebhook = (req, res, next) => {
     res.status(500).json({ error: 'Webhook validation failed' });
   }
 };
+console.log('Received webhook data:', JSON.stringify(data, null, 2));
+
+// Use the sendTestWebhook function in your heliusService.js
+const testResult = await heliusService.sendTestWebhook();
+console.log('Test webhook result:', testResult);
 
 module.exports = validateWebhook;
