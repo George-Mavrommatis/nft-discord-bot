@@ -1,5 +1,4 @@
 const express = require('express');
-const validateWebhook = require('./middleware/webhook-validator');
 const heliusService = require('./services/helius-service');
 const discordService = require('./services/discord-service');
 const logger = require('./utils/logger');
@@ -27,7 +26,7 @@ router.post('/trigger-test', async (req, res) => {
 });
 
 // Helius webhook endpoint
-router.post('/webhook',validateWebhook, async (req, res) => {
+router.post('/webhook', async (req, res) => {
   console.log('WEBHOOK RECEIVED: ', new Date().toISOString());
   console.log('Headers:', JSON.stringify(req.headers));
   console.log('Body sample:', JSON.stringify(req.body).substring(0, 500) + '...');
