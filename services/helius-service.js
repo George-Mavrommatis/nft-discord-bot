@@ -34,7 +34,7 @@ const heliusService = {
     }
   },
 
-  /**
+  /**going
    * Process webhook transactions to find matching NFT sales
    */
    processTransactions(transactions) {
@@ -45,139 +45,91 @@ const heliusService = {
        errors: []
      };
 
+     if (!Array.isArray(transactions) || transactions.length === 0) {
+       return results;
+     }
 
-     // Check for target traits
-  const hasTargetTrait = config.traitFilters.some(filter =>
-    attributes.some(attr =>
-      attr.trait_type === filter.trait_type &&
-      attr.value === filter.value
-    )
-  );
+     for (const tx of transactions) {
+       try {
+         // Extract NFT event
+         const nftEvent = tx.events?.nft;
+         if (!nftEvent) {
+           results.skipped.push({ reason: 'No NFT event', signature: tx.signature });
+           continue;
+         }
 
-  // After your trait verification check
-  if (!hasTargetTrait(attributes)) {
-    console.log(`[${timestamp}] Non-matching trait sale found`);
+         // Extract compressed NFT data
+         const cNFT = nftEvent.nfts?.[0];
+         if (!cNFT) {
+           results.skipped.push({ reason: 'No compressed NFT data', signature: tx.signature });
+           continue;
+         }
 
-    // Send a simple message for non-matching sales
-    const simpleSaleMsg = {
-      content: `A ${metadata.name || "Wegen"} has been sold but it ain't Silver or Gold!`
-    };
+         // Verify collection
+         const collectionId = cNFT.merkleTree;
+         if (collectionId !== config.merkleTree) {
+           results.skipped.push({
+             reason: 'Collection mismatch',
+             signature: tx.signature,
+             collection: collectionId
+           });
+           continue;
+         }
 
-    try {
-      console.log(`[${timestamp}] Posting simple sale notification`);
-      await axios.post(DISCORD_WEBHOOK_URL, simpleSaleMsg);
-      recentMessages.add(tx.signature);
-    } catch (discordError) {
-      console.error(`[${timestamp}] Discord Error:`, discordError.message);
-    }
+         // Extract metadata
+         const metadata = cNFT.metadata || {};
+         const attributes = metadata.attributes || [];
+         const price = nftEvent.amount ? (nftEvent.amount / 1e9).toFixed(2) : 0;
 
-    continue; // Continue to next transaction
-  }
+         // Verify minimum price
+         if (parseFloat(price) < config.minSolValue) {
+           results.skipped.push({
+             reason: 'Below minimum price',
+             signature: tx.signature,
+             price
+           });
+           continue;
+         }
 
-  if (hasTargetTrait) {
-    // Add to matched results for rich embeds
-    results.matched.push({
-      signature: tx.signature,
-      metadata,
-      price,
-      marketplace,
-      nftEvent
-    });
-  } else {
-    // Add to otherSales for simple notifications
-    results.otherSales.push({
-      signature: tx.signature,
-      name: metadata.name || "Wegen",
-      price
-    });
-  }
+         // Check for target traits
+         const hasTargetTrait = config.traitFilters.some(filter =>
+           attributes.some(attr =>
+             attr.trait_type === filter.trait_type &&
+             attr.value === filter.value
+           )
+         );
 
+         // Determine marketplace
+         const marketplace = config.marketplaces[nftEvent.source] || 'Unknown';
 
-    if (!Array.isArray(transactions) || transactions.length === 0) {
-      return results;
-    }
+         if (hasTargetTrait) {
+           // Add to matched results for rich embeds (Silver/Gold)
+           results.matched.push({
+             signature: tx.signature,
+             metadata,
+             price,
+             marketplace,
+             nftEvent
+           });
+         } else {
+           // Add to otherSales for simple notifications
+           results.otherSales.push({
+             signature: tx.signature,
+             name: metadata.name || "Wegen",
+             price,
+             marketplace
+           });
+         }
+       } catch (error) {
+         results.errors.push({
+           signature: tx.signature,
+           error: error.message
+         });
+       }
+     }
 
-    for (const tx of transactions) {
-      try {
-        // Extract NFT event
-        const nftEvent = tx.events?.nft;
-        if (!nftEvent) {
-          results.skipped.push({ reason: 'No NFT event', signature: tx.signature });
-          continue;
-        }
-
-        // Extract compressed NFT data
-        const cNFT = nftEvent.nfts?.[0];
-        if (!cNFT) {
-          results.skipped.push({ reason: 'No compressed NFT data', signature: tx.signature });
-          continue;
-        }
-
-        // Verify collection
-        const collectionId = cNFT.merkleTree;
-        if (collectionId !== config.merkleTree) {
-          results.skipped.push({
-            reason: 'Collection mismatch',
-            signature: tx.signature,
-            collection: collectionId
-          });
-          continue;
-        }
-
-        // Extract metadata
-        const metadata = cNFT.metadata || {};
-        const attributes = metadata.attributes || [];
-        const price = nftEvent.amount ? (nftEvent.amount / 1e9).toFixed(2) : 0;
-
-        // Verify minimum price
-        if (parseFloat(price) < config.minSolValue) {
-          results.skipped.push({
-            reason: 'Below minimum price',
-            signature: tx.signature,
-            price
-          });
-          continue;
-        }
-
-        // Check for target traits
-        const hasTargetTrait = config.traitFilters.some(filter =>
-          attributes.some(attr =>
-            attr.trait_type === filter.trait_type &&
-            attr.value === filter.value
-          )
-        );
-
-
-// all trait sales
-        if (!hasTargetTrait) {
-          results.skipped.push({
-            reason: 'No matching traits',
-            signature: tx.signature
-          });
-          continue;
-        }
-
-        // Determine marketplace
-        const marketplace = config.marketplaces[nftEvent.source] || 'Unknown';
-
-        // Add to matched results
-        results.matched.push({
-          signature: tx.signature,
-          metadata,
-          price,
-          marketplace,
-          nftEvent
-        });
-      } catch (error) {
-        results.errors.push({
-          signature: tx.signature,
-          error: error.message
-        });
-      }
-    }
-
-    return results;
-  },
+     return results;
+   },
 
   /**
    * Send a test webhook to Helius
