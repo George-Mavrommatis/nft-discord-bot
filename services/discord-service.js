@@ -49,7 +49,7 @@ class MessageQueue {
     // Process next message
     setImmediate(() => this.process());
   }
-  
+
   async sendSimpleSaleNotification(saleData) {
     const { name, price, signature } = saleData;
 
@@ -57,10 +57,18 @@ class MessageQueue {
       content: `A ${name} has been sold but it ain't Silver or Gold!`
     };
 
-    // Add to queue for sending
-    messageQueue.add(discordMsg);
-    return true;
+    try {
+      logger.info(`Posting simple sale notification for ${signature}`);
+      await axios.post(config.DISCORD_WEBHOOK_URL, discordMsg);
+      // If you're tracking recent messages
+      if (this.recentMessages) this.recentMessages.add(signature);
+      return true;
+    } catch (error) {
+      logger.error('Discord Error', { error: error.message, signature });
+      return false;
+    }
   }
+
 
   async sendMessage(message) {
     try {

@@ -61,7 +61,8 @@ router.post('/webhook', validateWebhook, async (req, res) => {
     // Send simple notifications for other sales
     for (const sale of results.otherSales) {
       await discordService.sendSimpleSaleNotification(sale);
-    }  
+    }
+
 
     return res.status(200).json({
       success: true,
