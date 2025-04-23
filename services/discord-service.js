@@ -88,7 +88,7 @@ class MessageQueue {
       // Rethrow for rate limit handling
       throw error;
     }
-  }  
+  }
 }
 
 const messageQueue = new MessageQueue();

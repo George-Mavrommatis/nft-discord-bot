@@ -1,3 +1,31 @@
+const express = require('express');
+const heliusService = require('./services/helius-service');
+const discordService = require('./services/discord-service');
+const logger = require('./utils/logger');
+const config = require('./config/config');
+
+// Create the router
+const router = express.Router();
+
+// Health check endpoint
+router.get('/', (req, res) => {
+  const timestamp = new Date().toISOString();
+  logger.info('Health check received');
+  res.status(200).send(`Server operational at ${timestamp}`);
+});
+
+// Test webhook endpoint - allows manual triggering of test webhooks
+router.post('/trigger-test', async (req, res) => {
+  try {
+    logger.info('Sending test webhook to Helius');
+    const result = await heliusService.sendTestWebhook();
+    res.status(200).json({ success: true, result });
+  } catch (error) {
+    logger.error(`Error sending test webhook: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Helius webhook endpoint
 router.post('/webhook', async (req, res) => {
   console.log('WEBHOOK RECEIVED: ', new Date().toISOString());
@@ -55,8 +83,6 @@ router.post('/webhook', async (req, res) => {
 // Helper function to detect test webhooks from Helius
 function detectHeliusTestWebhook(data) {
   // Check if this is a test webhook from Helius
-  // Test webhooks often have specific properties or structures
-
   console.log("Checking if webhook is a test webhook");
 
   // Log the full data for debugging
@@ -86,3 +112,5 @@ function detectHeliusTestWebhook(data) {
 
   return false;
 }
+
+module.exports = router;
