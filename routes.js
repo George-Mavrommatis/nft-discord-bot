@@ -1,7 +1,6 @@
-import express from 'express';
-import heliusService from './services/helius-service.js'; // Note the .js extension is required
+const express = require('express');
 const validateWebhook = require('./middleware/webhook-validator');
-
+const heliusService = require('./services/helius-service');
 const discordService = require('./services/discord-service');
 const logger = require('./utils/logger');
 const config = require('./config/config');
