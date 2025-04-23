@@ -73,7 +73,7 @@ class MessageQueue {
   async sendMessage(message) {
     try {
       logger.debug('Sending Discord message', { message });
-      const response = await axios.post(config.discordWebhookUrl, message);
+      const response = await axios.post(config.DISCORD_WEBHOOK_URL, message);
       logger.debug('Discord response', { status: response.status });
       return response;
     } catch (error) {

@@ -33,8 +33,11 @@ router.post('/webhook', async (req, res) => {
 
   const timestamp = new Date().toISOString();
   try {
-    // If this is a test webhook
-    if (req.isTestWebhook) {
+    // Check if this is a test webhook from Helius
+    // This logic needs to inspect the actual webhook payload
+    const isTestWebhook = detectTestWebhook(req.body);
+
+    if (isTestWebhook) {
       logger.info('Processing test webhook');
       await discordService.sendTestWebhookConfirmation();
       return res.status(200).json({ success: true, type: 'test' });
@@ -44,7 +47,7 @@ router.post('/webhook', async (req, res) => {
     logger.info(`Processing Helius webhook data at ${timestamp}`);
 
     // Extract transactions from the webhook payload
-    const transactions = req.body.accountData || req.body || [];
+    const transactions = req.body || [];
 
     // Process transactions to find matching NFT sales
     const results = heliusService.processTransactions(transactions);
@@ -66,7 +69,6 @@ router.post('/webhook', async (req, res) => {
       await discordService.sendSimpleSaleNotification(sale);
     }
 
-
     return res.status(200).json({
       success: true,
       processed: results.matched.length
@@ -75,7 +77,24 @@ router.post('/webhook', async (req, res) => {
     logger.error(`Critical webhook error: ${error.message}`, { stack: error.stack });
     return res.status(500).json({ error: error.message });
   }
-   res.status(200).json({ success: true });
+  // Remove this line - it's unreachable and would cause "headers already sent" error
+  // res.status(200).json({ success: true });
 });
+
+// Helper function to detect if the webhook is a test webhook from Helius
+function detectTestWebhook(webhookData) {
+  // Implement logic to detect a test webhook
+  // For example, test webhooks may have specific properties or values
+  // Based on Helius documentation or by examining the test webhook payload
+
+  // Simple example (you'll need to adjust this based on actual test webhook format)
+  if (Array.isArray(webhookData)) {
+    return webhookData.some(tx =>
+      tx.type === 'TEST_WEBHOOK' ||
+      (tx.description && tx.description.includes('test'))
+    );
+  }
+  return false;
+}
 
 module.exports = router;
