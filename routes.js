@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import heliusService from './services/helius-service.js'; // Note the .js extension is required
 const validateWebhook = require('./middleware/webhook-validator');
-const heliusService = require('./services/helius-service');
+
 const discordService = require('./services/discord-service');
 const logger = require('./utils/logger');
 const config = require('./config/config');
@@ -27,7 +28,7 @@ router.post('/trigger-test', async (req, res) => {
 });
 
 // Helius webhook endpoint
-router.post('/webhook', async (req, res) => {
+router.post('/webhook',validateWebhook, async (req, res) => {
   console.log('WEBHOOK RECEIVED: ', new Date().toISOString());
   console.log('Headers:', JSON.stringify(req.headers));
   console.log('Body sample:', JSON.stringify(req.body).substring(0, 500) + '...');
@@ -76,7 +77,7 @@ router.post('/webhook', async (req, res) => {
     logger.error(`Critical webhook error: ${error.message}`, { stack: error.stack });
     return res.status(500).json({ error: error.message });
   }
-   res.status(200).json({ success: true }); 
+   res.status(200).json({ success: true });
 });
 
 module.exports = router;
