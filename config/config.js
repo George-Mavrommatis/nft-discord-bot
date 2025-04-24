@@ -39,4 +39,16 @@ const config = {
   }
 };
 
-module.exports =  {DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,  config};
+module.exports = module.exports = {
+  config,
+  // Existing config properties
+  DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
+  heliusApiKey: process.env.HELIUS_API_KEY,
+  merkleTree: process.env.MERKLE_TREE,
+
+  // Add the missing logging configuration
+  logging: {
+    level: process.env.LOG_LEVEL || 'info',
+    format: process.env.LOG_FORMAT || 'json'
+  }
+};  

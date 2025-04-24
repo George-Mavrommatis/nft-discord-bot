@@ -1,21 +1,19 @@
 const winston = require('winston');
 const config = require('../config/config');
 
-// Create custom Winston logger
+// Add fallback values if config.logging is undefined
+const logLevel = config.logging?.level || 'info';
+const logFormat = config.logging?.format || 'json';
+
 const logger = winston.createLogger({
-  level: config.logging.level,
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
+  level: logLevel,
+  format: winston.format.json(),
+  defaultMeta: { service: 'solana-cnft-monitor' },
   transports: [
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })
-  ]
+      format: winston.format.simple(),
+    }),
+  ],
 });
 
 module.exports = logger;
