@@ -1,153 +1,159 @@
 const axios = require('axios');
 const config = require('../config/config');
 const logger = require('../utils/logger');
-const rateLimiter = require('../utils/rate-limiter');
 
-// Simple message queue for Discord
-class MessageQueue {
-  constructor() {
-    this.queue = [];
-    this.processing = false;
-  }
+// Initialize a queue for message handling
+const messageQueue = {
+  messages: [],
+  processing: false,
 
-  add(message) {
-    this.queue.push(message);
+  // Add a message to the queue
+  add: function(message) {
+    this.messages.push(message);
     if (!this.processing) {
-      this.process();
+      this.processQueue();
     }
-  }
+  },
 
-  async process() {
-    if (this.queue.length === 0) {
+  // Process messages in the queue
+  processQueue: async function() {
+    if (this.messages.length === 0) {
       this.processing = false;
       return;
     }
 
     this.processing = true;
-    const message = this.queue.shift();
+    const message = this.messages.shift();
 
     try {
-      if (rateLimiter.canConsume()) {
-        await this.sendMessage(message);
-      } else {
-        // If we can't consume a rate limit token, put message back and wait
-        this.queue.unshift(message);
-        setTimeout(() => this.process(), 1000);
-        return;
-      }
+      await discordService.sendMessage(message);
+      // Wait a short time to avoid rate limiting
+      setTimeout(() => this.processQueue(), 1000);
     } catch (error) {
-      logger.error(`Discord error: ${error.message}`);
-      // If it's a rate limit error, put message back in the queue
+      logger.error(`Error sending Discord message: ${error.message}`);
+      // If rate limited, wait longer
       if (error.response && error.response.status === 429) {
-        this.queue.unshift(message);
-        const retryAfter = error.response.headers['retry-after'] * 1000 || 5000;
-        setTimeout(() => this.process(), retryAfter);
-        return;
+        const retryAfter = error.response.headers['retry-after'] || 10;
+        logger.warn(`Discord rate limited. Retrying after ${retryAfter} seconds`);
+        setTimeout(() => this.processQueue(), retryAfter * 1000);
+      } else {
+        // For other errors, continue with next message after delay
+        setTimeout(() => this.processQueue(), 2000);
       }
     }
-
-    // Process next message
-    setImmediate(() => this.process());
   }
+};
 
-  async sendSimpleSaleNotification(saleData) {
-    const { name, price, signature } = saleData;
-
-    const discordMsg = {
-      content: `A ${name} has been sold but it ain't Silver or Gold!`
-    };
-
-    try {
-      logger.info(`Posting simple sale notification for ${signature}`);
-      await axios.post(config.DISCORD_WEBHOOK_URL, discordMsg);
-      // If you're tracking recent messages
-      if (this.recentMessages) this.recentMessages.add(signature);
-      return true;
-    } catch (error) {
-      logger.error('Discord Error', { error: error.message, signature });
-      return false;
-    }
-  }
-
-
-  // Change this in sendMessage method
+const discordService = {
+  /**
+   * Send a message to Discord
+   */
   async sendMessage(message) {
     try {
-      logger.debug('Sending Discord message', { message });
-      // Use the same variable name as in other methods
+      logger.debug('Sending Discord message');
       const response = await axios.post(config.DISCORD_WEBHOOK_URL, message);
       logger.debug('Discord response', { status: response.status });
       return response;
     } catch (error) {
-      // Improve error logging
-      logger.error('Discord message error', {
+      // Log the error details
+      logger.error('Discord Error', {
         error: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
-      // Rethrow for rate limit handling
       throw error;
     }
-  }
-}
-
-const messageQueue = new MessageQueue();
-
-const discordService = {
-  /**
-   * Format and send NFT sale notification to Discord
-   */
-  async sendNftSaleNotification(saleData) {
-    const { metadata, price, marketplace, signature, nftEvent } = saleData;
-
-    const discordMsg = {
-      embeds: [{
-        title: `💎 ${metadata.name || "cNFT"} Sold!`,
-        description: `**${price} SOL** on ${marketplace}\n[View Transaction](https://solscan.io/tx/${signature})`,
-        color: 0x00FF00,
-        fields: [
-          { name: "Buyer", value: `\`${nftEvent.buyer?.slice(0, 8)}...\``, inline: true },
-          { name: "Seller", value: `\`${nftEvent.seller?.slice(0, 8)}...\``, inline: true },
-          { name: "Traits", value: metadata.attributes.map(a => `• ${a.trait_type}: ${a.value}`).join('\n') || 'None' }
-        ],
-        thumbnail: { url: metadata.image || "" },
-        footer: { text: "Bongo's Silver/Gold Sales Monitor" }
-      }]
-    };
-
-    // Add to queue for sending
-    messageQueue.add(discordMsg);
-    return true;
   },
 
   /**
-   * Send test webhook confirmation to Discord
+   * Send a simple notification for NFT sales
    */
-   async sendTestWebhookConfirmation() {
-      try {
-        logger.info('Preparing test webhook confirmation message');
+  async sendSimpleSaleNotification(sale) {
+    try {
+      const message = {
+        content: `NFT Sale: ${sale.name} sold for ${sale.price} SOL on ${sale.marketplace}!`,
+      };
 
-        const testMsg = {
-          embeds: [{
-            title: "Helius Test Webhook Received ✅",
-            description: "Your webhook is configured correctly and ready to receive data.",
-            color: 65280 // Green color
-          }]
-        };
+      messageQueue.add(message);
+      return true;
+    } catch (error) {
+      logger.error(`Error creating simple sale notification: ${error.message}`);
+      return false;
+    }
+  },
 
-        logger.info('Sending test message to Discord');
-        const response = await axios.post(config.DISCORD_WEBHOOK_URL, testMsg);
-        logger.info('Test webhook Discord notification sent', { status: response.status });
-        return { success: true, status: response.status };
-      } catch (error) {
-        logger.error(`Error sending test webhook confirmation: ${error.message}`, { stack: error.stack });
-        return { success: false, error: error.message };
+  /**
+   * Send a rich notification for NFT sales with embed
+   */
+  async sendNftSaleNotification(sale) {
+    try {
+      const embed = {
+        title: `${sale.metadata.name} Sold!`,
+        description: `Price: ${sale.price} SOL`,
+        color: 0x00ff00, // Green
+        thumbnail: {
+          url: sale.metadata.image
+        },
+        fields: [
+          {
+            name: 'Marketplace',
+            value: sale.marketplace,
+            inline: true
+          }
+        ],
+        footer: {
+          text: `Transaction: ${sale.signature.substring(0, 8)}...`
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      // Add attributes as fields if available
+      if (sale.metadata.attributes && Array.isArray(sale.metadata.attributes)) {
+        sale.metadata.attributes.forEach(attr => {
+          if (attr.trait_type && attr.value) {
+            embed.fields.push({
+              name: attr.trait_type,
+              value: attr.value.toString(),
+              inline: true
+            });
+          }
+        });
       }
-    },
 
-    
-    messageQueue.add(testMsg);
-    return true;
+      const message = {
+        embeds: [embed]
+      };
+
+      messageQueue.add(message);
+      return true;
+    } catch (error) {
+      logger.error(`Error creating NFT sale notification: ${error.message}`);
+      return false;
+    }
+  },
+
+  /**
+   * Send test webhook confirmation
+   */
+  async sendTestWebhookConfirmation() {
+    try {
+      logger.info('Preparing test webhook confirmation message');
+
+      const testMsg = {
+        embeds: [{
+          title: "Helius Test Webhook Received ✅",
+          description: "Your webhook is configured correctly and ready to receive data.",
+          color: 65280 // Green color
+        }]
+      };
+
+      // Add message to queue instead of direct send
+      messageQueue.add(testMsg);
+      return true;
+    } catch (error) {
+      logger.error(`Error sending test webhook confirmation: ${error.message}`);
+      return false;
+    }
   }
 };
 
