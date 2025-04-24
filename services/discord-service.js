@@ -123,17 +123,29 @@ const discordService = {
   /**
    * Send test webhook confirmation to Discord
    */
-   // In sendTestWebhookConfirmation()
-   const testMsg = {
-     embeds: [{
-       title: "Helius Test Webhook Received ✅",
-       description: "Your webhook is configured correctly and ready to receive data.",
-       color: 65280 // Green
-     }]
-   };
+   async sendTestWebhookConfirmation() {
+      try {
+        logger.info('Preparing test webhook confirmation message');
 
-   await axios.post(config.DISCORD_WEBHOOK_URL, testMsg);  
+        const testMsg = {
+          embeds: [{
+            title: "Helius Test Webhook Received ✅",
+            description: "Your webhook is configured correctly and ready to receive data.",
+            color: 65280 // Green color
+          }]
+        };
 
+        logger.info('Sending test message to Discord');
+        const response = await axios.post(config.DISCORD_WEBHOOK_URL, testMsg);
+        logger.info('Test webhook Discord notification sent', { status: response.status });
+        return { success: true, status: response.status };
+      } catch (error) {
+        logger.error(`Error sending test webhook confirmation: ${error.message}`, { stack: error.stack });
+        return { success: false, error: error.message };
+      }
+    },
+
+    
     messageQueue.add(testMsg);
     return true;
   }
