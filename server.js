@@ -3,27 +3,17 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const winston = require('winston');
+const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 const routes = require('./routes');
+const logger = require('./utils/logger');
 
-// Initialize logger
-const logger = winston.createLogger({
-  level: config.logging.level,
-  format: winston.format.combine(
-    config.logging.timestamps ? winston.format.timestamp() : winston.format.simple(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    }),
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
-});
+// Create logs directory if it doesn't exist
+const logDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
+}
 
 // Create Express app
 const app = express();
@@ -31,8 +21,8 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// Parse JSON bodies
-app.use(express.json());
+// Parse JSON bodies with size limit
+app.use(express.json({ limit: '1mb' }));
 
 // Request logging
 app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));

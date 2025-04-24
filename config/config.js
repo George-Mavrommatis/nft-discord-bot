@@ -4,13 +4,13 @@ require('dotenv').config();
 // Default configuration values
 const config = {
   // Server configuration
-  port: process.env.PORT || 3000 || 8080,
+  port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
 
   // Rate limiting
   rateLimit: {
-    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60 * 1000, // 1 minute
-    maxRequests: process.env.RATE_LIMIT_MAX_REQUESTS || 8     // 8 requests per minute
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'), // 1 minute
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '8')  // 8 requests per minute
   },
 
   // Logging configuration
@@ -21,7 +21,7 @@ const config = {
 
   // Solana and Helius configuration
   heliusApiKey: process.env.HELIUS_API_KEY,
-  heliusApiUrl: process.env.HELIUS_API_URL || 'https://mainnet.helius-rpc.com',
+  heliusApiUrl: process.env.HELIUS_API_URL || 'https://nft-discord-bot-hyep.onrender.com/webhook',
 
   // Discord webhook
   discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
