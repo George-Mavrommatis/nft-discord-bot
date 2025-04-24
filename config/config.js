@@ -1,57 +1,37 @@
+// Load environment variables from .env file
 require('dotenv').config();
 
-// Add at the end of your config.js file or in server.js startup
-function validateConfig() {
-  const requiredVars = ['heliusApiKey', 'discordWebhookUrl', 'merkleTree'];
-
-  for (const key of requiredVars) {
-    if (!config[key]) {
-      console.error(`Error: Required configuration "${key}" is missing`);
-      process.exit(1); // Exit with error
-    }
-  }
-
-  console.log('Configuration validated successfully');
-}
-
+// Default configuration values
 const config = {
-  // Server config
-  port: process.env.PORT || 8080,
+  // Server configuration
+  port: process.env.PORT || 3000 || 8080,
   nodeEnv: process.env.NODE_ENV || 'development',
-
-  // Helius config
-  heliusApiKey: process.env.HELIUS_API_KEY,
-  webhookSecret: process.env.WEBHOOK_SECRET,
-
-  // Discord config
-  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
-
-  // NFT collection config
-  merkleTree: "88fLq9b2Hk1TLj3H9MQiQL1x5n8BAdvqk8SGMgbzmfSH",
-  traitFilters: [
-    { trait_type: "Body", value: "Silver" },
-    { trait_type: "Body", value: "Gold" }
-  ],
-  minSolValue: 0.01,
 
   // Rate limiting
   rateLimit: {
-    maxRequests: 8,
-    windowMs: 60000, // 1 minute
+    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60 * 1000, // 1 minute
+    maxRequests: process.env.RATE_LIMIT_MAX_REQUESTS || 8     // 8 requests per minute
   },
 
-  // Known marketplaces
-  marketplaces: {
-    'M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K': 'Magic Eden',
-    '5SKmrbAxnHV2sgqydDXKlGjk3z8ZVF5KsemPgYQPs1e': 'Hyperspace'
-  },
-
-  // Logging
+  // Logging configuration
   logging: {
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-    timestamps: true
-  }
+    level: process.env.LOG_LEVEL || 'info',
+    timestamps: process.env.LOG_TIMESTAMPS !== 'false' // Enable timestamps by default
+  },
+
+  // Solana and Helius configuration
+  heliusApiKey: process.env.HELIUS_API_KEY,
+  heliusApiUrl: process.env.HELIUS_API_URL || 'https://mainnet.helius-rpc.com',
+
+  // Discord webhook
+  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+
+  // NFT Collection configuration
+  merkleTree: process.env.MERKLE_TREE,
+  minSolValue: parseFloat(process.env.MIN_SOL_VALUE || '0'), // Minimum SOL value to monitor
+
+  // Optional configurations
+  webhookSecret: process.env.WEBHOOK_SECRET // For verifying webhook signatures
 };
 
 module.exports = config;
-module.exports.validateConfig = validateConfig;  
