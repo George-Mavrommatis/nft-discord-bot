@@ -1,5 +1,19 @@
 require('dotenv').config();
 
+// Add at the end of your config.js file or in server.js startup
+function validateConfig() {
+  const requiredVars = ['heliusApiKey', 'discordWebhookUrl', 'merkleTree'];
+
+  for (const key of requiredVars) {
+    if (!config[key]) {
+      console.error(`Error: Required configuration "${key}" is missing`);
+      process.exit(1); // Exit with error
+    }
+  }
+
+  console.log('Configuration validated successfully');
+}
+
 const config = {
   // Server config
   port: process.env.PORT || 8080,
@@ -39,16 +53,5 @@ const config = {
   }
 };
 
-module.exports = module.exports = {
-  config,
-  // Existing config properties
-  DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,
-  heliusApiKey: process.env.HELIUS_API_KEY,
-  merkleTree: process.env.MERKLE_TREE,
-
-  // Add the missing logging configuration
-  logging: {
-    level: process.env.LOG_LEVEL || 'info',
-    format: process.env.LOG_FORMAT || 'json'
-  }
-};  
+module.exports = config;
+module.exports.validateConfig = validateConfig;  
