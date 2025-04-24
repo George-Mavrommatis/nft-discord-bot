@@ -39,4 +39,4 @@ const config = {
   }
 };
 
-module.exports = config;
+module.exports =  {DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL,  config};

@@ -123,14 +123,16 @@ const discordService = {
   /**
    * Send test webhook confirmation to Discord
    */
-  async sendTestWebhookConfirmation() {
-    const testMsg = {
-      embeds: [{
-        title: "Helius Test Webhook Received ✅",
-        description: "Your webhook is configured correctly and ready to receive data.",
-        color: 65280
-      }]
-    };
+   // In sendTestWebhookConfirmation()
+   const testMsg = {
+     embeds: [{
+       title: "Helius Test Webhook Received ✅",
+       description: "Your webhook is configured correctly and ready to receive data.",
+       color: 65280 // Green
+     }]
+   };
+
+   await axios.post(config.DISCORD_WEBHOOK_URL, testMsg);  
 
     messageQueue.add(testMsg);
     return true;
