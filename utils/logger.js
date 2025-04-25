@@ -1,23 +1,12 @@
 const winston = require('winston');
-const config = require('../config');
 
-// Initialize logger
 const logger = winston.createLogger({
-  level: config.logging.level,
+  level: 'info',
   format: winston.format.combine(
-    config.logging.timestamps ? winston.format.timestamp() : winston.format.simple(),
-    winston.format.json()
+    winston.format.timestamp(),
+    winston.format.printf(info => `${info.timestamp} [${info.level.toUpperCase()}]: ${info.message}`)
   ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    }),
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
+  transports: [new winston.transports.Console()]
 });
 
 module.exports = logger;

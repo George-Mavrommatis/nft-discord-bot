@@ -1,74 +1,80 @@
-// utils/discord.js
 const axios = require('axios');
-const config = require('../config');
 const logger = require('./logger');
 
 async function sendDiscordNotification(saleDetails) {
-  try {
-    logger.info(`Preparing Discord notification for sale: ${saleDetails.signature}`);
+  const { price, buyer, seller, signature, nfts } = saleDetails;
+  const nftInfo = nfts.map(nft =>
+    `**Name**: ${nft.name}\n**Collection**: ${nft.collection}\nTraits: ${nft.traits.map(trait => `\`${trait.attribute_type}: ${trait.value}\``).join(', ')}`
+  ).join('\n\n');
 
-    // Check webhook URL
-    if (!config.discordWebhookUrl) {
-      logger.error('Discord webhook URL not configured');
-      return false;
-    }
-
-    // Format the Discord message
-    const embedColor = 0x9945FF; // Solana purple
-    const message = {
-      embeds: [{
-        title: `NFT Sale - ${(saleDetails.price).toFixed(2)} SOL`,
-        color: embedColor,
+  const message = {
+    embeds: [
+      {
+        title: `📢 New NFT Sale`,
+        color: 0x1e90ff,
         fields: [
+          { name: 'Price (SOL)', value: `**${price}**`, inline: true },
+          { name: 'Buyer', value: buyer, inline: true },
+          { name: 'Seller', value: seller, inline: true },
+          { name: 'NFT Info', value: nftInfo },
           {
-            name: 'Collection',
-            value: saleDetails.nfts[0]?.collection?.name || 'Unknown',
-            inline: true
-          },
-          {
-            name: 'NFT',
-            value: saleDetails.nfts[0]?.name || 'Unknown',
-            inline: true
-          },
-          {
-            name: 'Price',
-            value: `${saleDetails.price.toFixed(2)} SOL`,
-            inline: true
-          },
-          {
-            name: 'Buyer',
-            value: `\`${saleDetails.buyer.substring(0, 8)}...\``,
-            inline: true
-          },
-          {
-            name: 'Seller',
-            value: `\`${saleDetails.seller.substring(0, 8)}...\``,
-            inline: true
+            name: 'Transaction',
+            value: `[View on Solana Explorer](https://explorer.solana.com/tx/${signature})`
           }
         ],
-        url: `https://explorer.solana.com/tx/${saleDetails.signature}`,
         timestamp: new Date().toISOString()
-      }]
-    };
+      }
+    ]
+  };
 
-    // Send the Discord notification with detailed error logging
-    logger.info(`Sending Discord notification to: ${config.discordWebhookUrl.substring(0, 20)}...`);
-    const response = await axios.post(config.discordWebhookUrl, message);
-
-    if (response.status === 204) {
-      logger.info(`Discord notification sent successfully for sale: ${saleDetails.signature}`);
-      return true;
-    } else {
-      logger.warn(`Unexpected Discord response: ${response.status}`);
-      return false;
-    }
+  try {
+    await axios.post(process.env.DISCORD_WEBHOOK_URL, message, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    logger.info('General Discord notification sent successfully.');
   } catch (error) {
-    logger.error('Error sending Discord notification:', error.message);
-    if (error.response) {
-      logger.error('Discord API response:', error.response.status, error.response.data);
-    }
-    throw error; // Re-throw to be caught by the calling function
+    logger.error(`Failed to send Discord notification: ${error.message}`);
   }
 }
 
-module.exports = { sendDiscordNotification };
+async function sendFlashyDiscordNotification(saleDetails) {
+  const { price, buyer, seller, signature, nfts } = saleDetails;
+
+  const message = {
+    embeds: [
+      {
+        title: `✨🚀 Flashy NFT Sale Alert 🚀✨`,
+        description: `A spectacular NFT was just sold!`,
+        color: 0xf1c40f,
+        fields: [
+          { name: 'Price (SOL)', value: `**${price}**`, inline: true },
+          { name: 'Buyer', value: buyer, inline: true },
+          { name: 'Seller', value: seller, inline: true },
+          {
+            name: 'Transaction',
+            value: `[View on Solana Explorer](https://explorer.solana.com/tx/${signature})`
+          }
+        ],
+        thumbnail: {
+          url: 'https://cdn-icons-png.flaticon.com/512/868/868786.png' // Replace with an appropriate image
+        },
+        footer: {
+          text: 'Trait: Body - Silver/Gold',
+          icon_url: 'https://i.imgur.com/AfFp7pu.png'
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    await axios.post(process.env.DISCORD_WEBHOOK_URL, message, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    logger.info('Flashy Discord notification sent successfully.');
+  } catch (error) {
+    logger.error(`Failed to send flashy Discord notification: ${error.message}`);
+  }
+}
+
+module.exports = { sendDiscordNotification, sendFlashyDiscordNotification };
