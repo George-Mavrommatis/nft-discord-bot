@@ -27,7 +27,7 @@ const config = {
   discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
 
   // NFT Collection configuration
-  merkleTree: null,
+  merkleTree: process.env.MERKLE_TREE,
   minSolValue: parseFloat(process.env.MIN_SOL_VALUE || '0'), // Minimum SOL value to monitor
 
   // Optional configurations
