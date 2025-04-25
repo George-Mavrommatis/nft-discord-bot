@@ -102,6 +102,27 @@ async function processWebhookPayload(payload) {
   let matchingCollectionCount = 0;
   let aboveMinSolCount = 0;
 
+
+  // Inside your webhook handler - add this after parsing the payload
+  for (const transaction of payload) {
+    if (transaction.type === 'NFT_SALE') {
+      const { nfts, amount, buyer, seller, signature } = transaction.events.nft;
+      const solAmount = amount / 1e9; // Convert lamports to SOL
+
+      // Log ALL sale details regardless of filters
+      logger.info(`NFT Sale Details:
+        Price: ${solAmount} SOL
+        Collection Merkle Trees: ${nfts.map(nft => nft.merkleTree).join(', ')}
+        Target Collection: ${config.merkleTree}
+        Meets Collection Filter: ${nfts.some(nft => nft.merkleTree === config.merkleTree)}
+        Meets Price Filter: ${solAmount >= config.minSolValue}
+        Signature: ${signature}
+      `);
+
+      // Continue with your normal filtering...
+    }
+  }
+  
   // Process each transaction in the payload
   for (const transaction of payload) {
     // Filter for NFT_SALE transactions
